@@ -56,6 +56,21 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
 .wall-qr.qr-card .room em{font-size:22px}
 .offsite{font-family:var(--font-ui);font-size:15px;line-height:1.5;background:rgba(27,25,38,.86);color:#f7f3ec;padding:12px 18px;border-radius:14px;max-width:min(560px,92%);text-align:center;margin:0;opacity:1}
 .wall-empty p.offsite{font-family:var(--font-ui);font-size:15px;opacity:1}
+.view-in{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+#view{overflow:auto;background:var(--ink);padding-block:calc(env(safe-area-inset-top,0px) + 22px) calc(env(safe-area-inset-bottom,0px) + 32px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.view-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.view-head h1{font-family:var(--font-display);font-weight:400;font-size:clamp(30px,5vw,44px);line-height:1.1;margin:0}
+.view-sub{margin:4px 0 0;color:var(--muted);font-size:15px}
+.view-sub .num{font-family:var(--font-display);color:var(--text);font-size:22px;font-variant-numeric:tabular-nums}
+.view-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.view-actions .btn{text-decoration:none;color:var(--text)}
+.view-empty{color:var(--muted);margin:24px 0;text-align:center}
+.view-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
+.vcard{background:linear-gradient(180deg,#d7d1f7,#b9bef2);border-radius:20px;padding:8px 8px 10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.vcard canvas{width:100%;height:auto;aspect-ratio:1/1;display:block}
+.vcard.fresh{animation:fresh 2.4s ease-out}
+@keyframes fresh{0%{box-shadow:0 0 0 4px var(--go);transform:scale(1.04)}100%{box-shadow:0 0 0 0 rgba(255,162,127,0);transform:none}}
+.vlabel{margin:0 4px;font-size:13px;color:#2a2550;font-variant-numeric:tabular-nums}
 .pick-note{font-size:13px;color:var(--muted);max-width:34em;margin:0;text-wrap:balance}
 .codegate{position:fixed;inset:0;background:var(--ink);display:grid;place-items:center;z-index:8;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
 .codebox{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;max-width:420px;width:100%}
@@ -231,6 +246,10 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
       <div class="qr-card" data-qr><canvas width="256" height="256"></canvas><div class="qt"><b>카메라로 찍으면 그리기 화면이 열려요</b><span class="room">방 코드<em data-room>·····</em></span><span data-qr-url></span></div></div>
       <div class="row"><button class="btn" id="btnNewRoom" type="button">새 방 코드 만들기</button></div>
       <p class="hint">코드를 바꾸면 새 방이 열려요. 휴대폰과 태블릿에서 QR을 다시 찍어야 해요.</p>
+      <h3>현황 보기 링크</h3>
+      <p class="addr" id="viewLink"></p>
+      <div class="row"><button class="btn" id="btnCopyView" type="button">현황 링크 복사</button></div>
+      <p class="hint">이 링크를 휴대폰에서 열면 지금까지 들어온 얼굴을 번호와 시간 순서로 실시간으로 볼 수 있어요. 지우기나 설정 변경은 안 돼요.</p>
       <label class="check" for="qrToggle"><input type="checkbox" id="qrToggle"> 벽 오른쪽 아래에 QR 계속 띄우기</label>
     </div>
     <div class="panel-sec">
@@ -261,6 +280,23 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(-
     <p class="hint">단축키 · F 전체화면 · M 관리 · T 등장 장면 보기</p>
   </aside>
   <div class="toast" id="wallToast" hidden></div>
+</section>
+
+<section id="view" class="screen" hidden>
+  <div class="view-in">
+    <header class="view-head">
+      <div>
+        <h1>벽 현황</h1>
+        <p class="view-sub"><span id="vRoom">방</span> · 얼굴 <span class="num" id="vCount">0</span>개 · 새 얼굴이 오면 맨 앞에 바로 붙어요</p>
+      </div>
+      <div class="view-actions">
+        <span class="conn" data-conn data-s="checking"><i></i><span>연결 중</span></span>
+        <a class="btn" id="vWallLink" href="#">움직이는 벽으로 보기</a>
+      </div>
+    </header>
+    <p class="view-empty" id="vEmpty">아직 들어온 얼굴이 없어요. 새 얼굴이 오면 여기에 바로 보여요.</p>
+    <div class="view-grid" id="vGrid"></div>
+  </div>
 </section>
 
 <section id="pad" class="screen" hidden>
@@ -2881,6 +2917,7 @@ function renderQRs(){
     const span=card.querySelector('[data-qr-url]');if(span)span.textContent=url?url.replace(/^https?:\/\//,''):'그리기 화면에서 이 코드를 넣으세요';
   }
   for(const el of document.querySelectorAll('[data-room]'))el.textContent=ROOM||'·····';
+  const vl=$('viewLink');if(vl)vl.textContent=ROOM?(OFFSITE?SITE:location.origin+location.pathname)+'?view='+ROOM:'';
 }
 /* local copy of the wall's faces, per room, so a refresh keeps them */
 const store=(()=>{
@@ -2895,10 +2932,11 @@ const store=(()=>{
 })();
 
 /* ================= modes ================= */
-const qCode=cleanCode(new URLSearchParams(location.search).get('r'));
+const URLP=new URLSearchParams(location.search);
+const qCode=cleanCode(URLP.get('r')), vCode=cleanCode(URLP.get('view')), wCode=cleanCode(URLP.get('wall'));
 const hashMode=location.hash.replace('#','');
 const savedMode=LS.get('facewall.mode');
-const mode=qCode.length===5?'pad':(hashMode==='wall'||hashMode==='pad')?hashMode:(savedMode==='wall'||savedMode==='pad')?savedMode:'pick';
+const mode=qCode.length===5?'pad':vCode.length===5?'view':wCode.length===5?'wall':(hashMode==='wall'||hashMode==='pad')?hashMode:(savedMode==='wall'||savedMode==='pad')?savedMode:'pick';
 function go(m){LS.set('facewall.mode',m==='pick'?'':m);location.href=location.pathname+(m==='pick'?'':'#'+m);setTimeout(()=>location.reload(),60);}
 let wakeLock=null;
 async function keepAwake(){
@@ -3142,7 +3180,8 @@ function startWall(){
   W.ctx=$('wallCanvas').getContext('2d');resizeWall();applyTheme();
   $('wallCaption').textContent=LS.get('facewall.caption')||'';$('capInput').value=LS.get('facewall.caption')||'';
   $('qrToggle').checked=LS.get('facewall.qr')==='1';
-  ROOM=cleanCode(LS.get('facewall.room'));if(ROOM.length!==5){ROOM=rid(5);LS.set('facewall.room',ROOM);}
+  if(wCode.length===5){ROOM=wCode;$('btnNewRoom').hidden=true;}
+  else{ROOM=cleanCode(LS.get('facewall.room'));if(ROOM.length!==5){ROOM=rid(5);LS.set('facewall.room',ROOM);}}
   renderQRs();setConn(connState);
   W.running=true;W.last=0;requestAnimationFrame(wallFrame);
   loadRoom().then(()=>{startRelays();startWallFeed();});wake();
@@ -3216,6 +3255,11 @@ if(mode==='wall'){
     await loadRoom();startWallFeed();wallToast('새 방 코드 '+ROOM+'로 바꿨어요.');
   });
   $('btnSwitchW').addEventListener('click',()=>go('pick'));
+  $('btnCopyView').addEventListener('click',async()=>{
+    const t=$('viewLink').textContent;
+    try{await navigator.clipboard.writeText(t);wallToast('현황 링크를 복사했어요.');}
+    catch(e){const r=document.createRange();r.selectNodeContents($('viewLink'));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);wallToast('링크를 선택해 두었어요. Ctrl+C로 복사하세요.');}
+  });
   $('faceGrid').addEventListener('click',e=>{
     const b=e.target.closest('button');if(!b)return;const id=b.dataset.id,F=W.all.get(id);if(!F)return;
     if(b.dataset.act==='replay'){if(W.cur&&W.cur.F===F)return;if(W.queue.includes(F))return;W.faces.delete(id);W.off=W.off.filter(x=>x!==F);W.talks=W.talks.filter(k=>k.f!==F);W.queue.push(F);}
@@ -3399,11 +3443,47 @@ function startPad(){
   if(ROOM.length!==5)showGate();
 }
 
+/* ================= VIEW (read-only status board) ================= */
+function startView(){
+  ROOM=vCode;setConn(connState);
+  $('vRoom').textContent='방 '+ROOM;
+  $('vWallLink').href=location.pathname+'?wall='+ROOM;
+  const items=new Map(),grid=$('vGrid');
+  const fmt=ts=>ts?new Date(ts).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false}):'';
+  function render(){
+    const arr=[...items.values()].sort((a,b)=>(a.d.createdAt||0)-(b.d.createdAt||0));
+    arr.forEach((it,i)=>{it.label.textContent=(i+1)+'번 · '+fmt(it.d.createdAt);});
+    for(const it of arr.slice().reverse())grid.append(it.el);
+    $('vCount').textContent=arr.length;$('vEmpty').hidden=arr.length>0;
+  }
+  function card(id,d,fresh){
+    const F=makeFace(id,d,false);
+    const el=document.createElement('div');el.className='vcard'+(fresh?' fresh':'');
+    const c=document.createElement('canvas');c.width=c.height=360;const ctx=c.getContext('2d');
+    if(F.hasBub){const fs=220,fx=130,fy=245;paintFace(ctx,F,fx,fy,fs);const bw=230,bh=bw*BH/BW;let x=fx+fs*.24-TIP[0]/BW*bw,y=fy-fs*.28-TIP[1]/BH*bh;x=clamp(x,4,356-bw);y=clamp(y,4,356-bh);paintBubble(ctx,F,x,y,bw);}
+    else paintFace(ctx,F,180,185,290);
+    const label=document.createElement('p');label.className='vlabel';
+    el.append(c,label);return {el,label,d};
+  }
+  onRelayMsg=(topic,payload,packet)=>{
+    const prefix=NS+ROOM+'/f/';if(!topic.startsWith(prefix))return;
+    const id=topic.slice(prefix.length);if(!/^[A-Za-z0-9_-]{4,64}$/.test(id))return;
+    const txt=decode(payload);
+    if(!txt){const it=items.get(id);if(it){it.el.remove();items.delete(id);render();}return;}
+    if(items.has(id))return;
+    let d;try{d=JSON.parse(txt);}catch(e){return;}
+    if(!d||typeof d!=='object')return;
+    items.set(id,card(id,d,!packet.retain));render();
+  };
+  startRelays();relaySubscribe([NS+ROOM+'/f/+']);
+}
+
 /* ================= boot ================= */
 $(mode).hidden=false;
 if(OFFSITE)for(const el of document.querySelectorAll('[data-offsite]'))el.hidden=false;
 if(mode==='wall')startWall();
 if(mode==='pad')startPad();
+if(mode==='view')startView();
 if(mode==='pick'){drawPickStrip();addEventListener('resize',drawPickStrip);$('goWall').addEventListener('click',()=>go('wall'));$('goPad').addEventListener('click',()=>go('pad'));}
 if(mode!=='pick')keepAwake();
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(bubPad)bubPad.dirty=true;});
